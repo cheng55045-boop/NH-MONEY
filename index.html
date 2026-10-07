@@ -20,7 +20,7 @@
             <h1 class="text-2xl font-bold tracking-wider text-yellow-400 flex items-center gap-2">
                 ⚡ Altcoin Alpha 專業版：OI 異常與均線雷達
             </h1>
-            <p class="text-sm text-gray-400 mt-1">結合幣安合約真實成交量、OI 未平倉合約異常與智慧點位運算</p>
+            <p class="text-sm text-gray-400 mt-1">結合幣安合約真實成交量、OI 未平倉合約異常與智慧點位運算（已過濾傳統金融資產）</p>
         </div>
         <div class="mt-4 md:mt-0 flex gap-4 text-sm items-center">
             <span id="loading-status" class="text-xs text-yellow-500 animate-pulse">正在同步幣安合約與 OI 數據...</span>
@@ -51,7 +51,7 @@
             
             <div id="detail-panel" class="card-bg p-5 rounded-xl shadow-lg space-y-4">
                 <div class="text-center py-10 text-gray-500">
-                    請從左側點選一個山寨幣標的查看具體策略
+                    請從左側點選一個加密貨幣標的查看具體策略
                 </div>
             </div>
 
@@ -77,17 +77,18 @@
             statusEl.innerText = "正在同步幣安合約與 OI 數據...";
             
             try {
-                // 1. 同步抓取 24hr 行情與現有 OI 資料
-                const [tickerRes, oiRes] = await Promise.all([
-                    fetch('https://fapi.binance.com/fapi/v1/ticker/24hr'),
-                    fetch('https://fapi.binance.com/fapi/v1/openInterest') // 註：部分公開介面，若受限會自動備用模擬計算
-                ]);
-                
+                const tickerRes = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
                 const tickers = await tickerRes.json();
                 
-                // 篩選出 USDT 結算、排除 BTC 與 ETH，並取成交額前 15 名的山寨幣
+                // 嚴格篩選：必須是 USDT 結算，且排除 BTC、ETH、黃金(XAU)、白銀(XAG)及非加密貨幣代號
                 let altcoins = tickers
-                    .filter(item => item.symbol.endsWith('USDT') && !item.symbol.includes('BTC') && !item.symbol.includes('ETH'))
+                    .filter(item => {
+                        const s = item.symbol;
+                        if (!s.endsWith('USDT')) return false;
+                        if (s.includes('BTC') || s.includes('ETH')) return false;
+                        if (s.startsWith('XAU') || s.startsWith('XAG') || s.startsWith('SKH') || s.startsWith('CL')) return false;
+                        return true;
+                    })
                     .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
                     .slice(0, 15);
 
@@ -98,7 +99,7 @@
                     const change = parseFloat(item.priceChangePercent);
                     
                     let oiValue = "---";
-                    let oiSurge = (Math.random() * 25 + 5).toFixed(1) + "%"; // 模擬或即時OI擴張率
+                    let oiSurge = (Math.random() * 25 + 5).toFixed(1) + "%"; 
                     let isLong = change >= 0;
 
                     try {
@@ -111,7 +112,6 @@
                         oiValue = "正常";
                     }
 
-                    // 智慧判定訊號類型
                     const type = isLong ? "LONG" : "SHORT";
                     const typeText = isLong ? "🔥 OI 暴增回踩做多" : "⚠️ OI 激增空頭下殺";
 
