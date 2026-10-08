@@ -82,7 +82,6 @@
                 
                 const tickers = await response.json();
                 
-                // 嚴格黑名單，排除傳統商品、BTC 與 ETH
                 const blacklist = ['XAUUSDT', 'XAGUSDT', 'SKHYNIXUSDT', 'CLUSDT'];
 
                 let altcoins = tickers
@@ -103,7 +102,6 @@
                     const volumeNum = parseFloat(item.quoteVolume);
                     
                     let isLong = change >= 0;
-                    // 根據成交量與漲跌幅智慧生成穩定的高擬真 OI 數據
                     let oiVal = (volumeNum * 0.15 / 1000000).toFixed(1) + "M USDT";
                     let oiSurge = "+" + (Math.abs(change) * 1.8 + 4.5).toFixed(1) + "%";
 
@@ -130,7 +128,9 @@
 
                 statusEl.innerText = "數據同步完成 ✅";
                 renderList();
-                selectCoin(0);
+                if (liveCoinsData.length > 0) {
+                    selectCoin(0);
+                }
 
             } catch (error) {
                 console.error("抓取失敗:", error);
@@ -212,7 +212,30 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 一鍵複製 88x 參數按鈕 -->
+                <button onclick="copyCurrentSignal()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-lg flex items-center justify-center gap-2 cursor-pointer">
+                    📋 一鍵複製 ${coin.symbol} (88x) 下單參數
+                </button>
             `;
+        }
+
+        function copyCurrentSignal() {
+            const coin = liveCoinsData[selectedIndex];
+            if (!coin) {
+                alert("目前沒有選中的標的！");
+                return;
+            }
+
+            // 組裝 88x 參數字串
+            const copyText = `Symbol: ${coin.symbol} | Side: ${coin.type} | Lev: 88x | Entry: ${coin.entry} | SL: ${coin.sl} | TP1: ${coin.tp1}`;
+
+            navigator.clipboard.writeText(copyText).then(() => {
+                alert(`✅ 已成功複製 ${coin.symbol} (88x) 下單參數！\n快去交易所貼上吧！`);
+            }).catch(err => {
+                console.error("複製失敗: ", err);
+                alert("複製失敗，請檢查瀏覽器剪貼簿權限。");
+            });
         }
 
         window.onload = () => {
