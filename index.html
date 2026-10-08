@@ -47,8 +47,21 @@
 
         <!-- 右側：戰術執行面板 -->
         <div class="space-y-4">
-            <h2 class="text-lg font-semibold text-gray-200">🎯 智慧交易執行與點位</h2>
+            <h2 class="text-lg font-semibold text-gray-200">🎯 智慧交易執行與點位 (88x)</h2>
             
+            <!-- 帳戶資金設定區 -->
+            <div class="card-bg p-4 rounded-xl shadow-lg space-y-2">
+                <label class="text-xs font-bold text-yellow-400 uppercase tracking-wider block">💰 帳戶總資金設定 (USDT)</label>
+                <div class="flex items-center gap-2">
+                    <input type="number" id="account-balance" value="100" oninput="updateRiskCalculation()" class="w-full bg-black/50 border border-gray-700 rounded px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-yellow-500">
+                    <span class="text-xs text-gray-400 whitespace-nowrap">USDT</span>
+                </div>
+                <div class="text-xs text-gray-400 flex justify-between pt-1">
+                    <span>2% 風險預算：<strong id="risk-amount" class="text-yellow-400 font-mono">2.00 USDT</strong></span>
+                    <span>槓桿：<strong class="text-green-400 font-mono">88x</strong></span>
+                </div>
+            </div>
+
             <div id="detail-panel" class="card-bg p-5 rounded-xl shadow-lg space-y-4">
                 <div class="text-center py-10 text-gray-500">
                     請從左側點選一個加密貨幣標的查看具體策略
@@ -67,7 +80,7 @@
 
     </main>
 
-    <!-- JavaScript 邏輯：高效率安全同步 -->
+    <!-- JavaScript 邏輯 -->
     <script>
         let liveCoinsData = [];
         let selectedIndex = 0;
@@ -81,7 +94,6 @@
                 if (!response.ok) throw new Error('網路回應異常');
                 
                 const tickers = await response.json();
-                
                 const blacklist = ['XAUUSDT', 'XAGUSDT', 'SKHYNIXUSDT', 'CLUSDT'];
 
                 let altcoins = tickers
@@ -95,7 +107,7 @@
                     .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
                     .slice(0, 15);
 
-                liveCoinsData = altcoins.map((item, index) => {
+                liveCoinsData = altcoins.map((item) => {
                     const symbol = item.symbol;
                     const price = parseFloat(item.lastPrice);
                     const change = parseFloat(item.priceChangePercent);
@@ -108,21 +120,31 @@
                     const type = isLong ? "LONG" : "SHORT";
                     const typeText = isLong ? "🔥 OI 暴增回踩做多" : "⚠️ OI 激增空頭下殺";
 
+                    const rawEntry = price * (isLong ? 0.992 : 1.008);
+                    const rawSl = price * (isLong ? 0.972 : 1.028);
+                    const rawTp1 = price * (isLong ? 1.040 : 0.960);
+                    const rawTp2 = price * (isLong ? 1.080 : 0.920);
+
                     return {
                         symbol: symbol,
                         type: type,
                         typeText: typeText,
-                        price: price > 1 ? price.toFixed(2) : price.toFixed(6),
+                        price: price,
+                        priceStr: price > 1 ? price.toFixed(2) : price.toFixed(6),
                         change24h: (change >= 0 ? "+" : "") + change.toFixed(2) + "%",
                         volume: (volumeNum / 1000000).toFixed(1) + "M USDT",
                         oi: oiVal,
                         oiChange: oiSurge,
                         maStatus: isLong ? "突破短均線，回踩確認支撐" : "跌破關鍵均線，賣壓湧現",
                         structure: isLong ? "4H 結構：多頭趨勢延續 (BOS)" : "4H 結構：頭部成型，跌破支撐 (CHoCH)",
-                        entry: (price * (isLong ? 0.992 : 1.008)).toFixed(price > 1 ? 2 : 6),
-                        sl: (price * (isLong ? 0.972 : 1.028)).toFixed(price > 1 ? 2 : 6),
-                        tp1: (price * (isLong ? 1.040 : 0.960)).toFixed(price > 1 ? 2 : 6),
-                        tp2: (price * (isLong ? 1.080 : 0.920)).toFixed(price > 1 ? 2 : 6)
+                        entry: rawEntry,
+                        sl: rawSl,
+                        tp1: rawTp1,
+                        tp2: rawTp2,
+                        entryStr: rawEntry.toFixed(price > 1 ? 2 : 6),
+                        slStr: rawSl.toFixed(price > 1 ? 2 : 6),
+                        tp1Str: rawTp1.toFixed(price > 1 ? 2 : 6),
+                        tp2Str: rawTp2.toFixed(price > 1 ? 2 : 6)
                     };
                 });
 
@@ -157,7 +179,7 @@
                         </div>
                         <div class="flex items-center gap-6 text-right">
                             <div>
-                                <p class="text-sm font-semibold text-gray-200">現價: $${item.price}</p>
+                                <p class="text-sm font-semibold text-gray-200">現價: $${item.priceStr}</p>
                                 <p class="text-xs ${isPositive ? 'text-green-400' : 'text-red-400'}">24h: ${item.change24h}</p>
                             </div>
                         </div>
@@ -168,7 +190,24 @@
 
         function selectCoin(index) {
             selectedIndex = index;
-            const coin = liveCoinsData[index];
+            updateRiskCalculation();
+        }
+
+        function updateRiskCalculation() {
+            if (liveCoinsData.length === 0) return;
+            const coin = liveCoinsData[selectedIndex];
+            const balanceInput = document.getElementById('account-balance');
+            const balance = parseFloat(balanceInput.value) || 0;
+            
+            // 計算 2% 風險預算
+            const riskBudget = balance * 0.02;
+            document.getElementById('risk-amount').innerText = riskBudget.toFixed(2) + " USDT";
+
+            // 計算單位風險與建議開倉數量 (張數)
+            const priceRiskPerUnit = Math.abs(coin.entry - coin.sl);
+            let quantity = priceRiskPerUnit > 0 ? (riskBudget / priceRiskPerUnit) : 0;
+            let qtyStr = quantity < 1 ? quantity.toFixed(4) : quantity.toFixed(2);
+
             const panel = document.getElementById('detail-panel');
             const isLong = coin.type === 'LONG';
             
@@ -179,16 +218,20 @@
                         <h3 class="text-xl font-bold text-white mt-1">${coin.symbol}</h3>
                     </div>
                     <div class="text-right">
-                        <span class="text-lg font-mono text-yellow-400">$${coin.price}</span>
+                        <span class="text-lg font-mono text-yellow-400">$${coin.priceStr}</span>
                         <p class="text-xs text-yellow-400 font-bold">OI 增幅：${coin.oiChange}</p>
                     </div>
+                </div>
+
+                <div class="space-y-1 text-sm bg-yellow-500/10 p-3 rounded-lg border border-yellow-500/30">
+                    <p><strong class="text-yellow-400">📐 2% 風險資金：</strong> <span class="text-white font-mono font-bold">${riskBudget.toFixed(2)} USDT</span></p>
+                    <p><strong class="text-yellow-400">📦 建議開倉數量：</strong> <span class="text-green-400 font-mono font-bold">${qtyStr} 張 (88x)</span></p>
                 </div>
 
                 <div class="space-y-2 text-sm">
                     <p><strong class="text-gray-400">📊 市場結構：</strong> <span class="text-gray-200">${coin.structure}</span></p>
                     <p><strong class="text-gray-400">📈 均線狀態：</strong> <span class="text-gray-200">${coin.maStatus}</span></p>
                     <p><strong class="text-gray-400">⚖️ 24h 成交額：</strong> <span class="text-gray-200">${coin.volume}</span></p>
-                    <p><strong class="text-gray-400">📦 合約總 OI：</strong> <span class="text-gray-200">${coin.oi}</span></p>
                 </div>
 
                 <div class="bg-black/40 p-4 rounded-lg border border-gray-800 space-y-2">
@@ -196,42 +239,64 @@
                     <div class="grid grid-cols-2 gap-2 text-xs">
                         <div class="bg-gray-800/60 p-2 rounded">
                             <span class="text-gray-400 block">建議進場點 (Entry)</span>
-                            <strong class="text-white text-sm">$${coin.entry}</strong>
+                            <strong class="text-white text-sm">$${coin.entryStr}</strong>
                         </div>
                         <div class="bg-gray-800/60 p-2 rounded">
                             <span class="text-gray-400 block">止損點 (Stop Loss)</span>
-                            <strong class="text-red-400 text-sm">$${coin.sl}</strong>
+                            <strong class="text-red-400 text-sm">$${coin.slStr}</strong>
                         </div>
                         <div class="bg-gray-800/60 p-2 rounded">
                             <span class="text-gray-400 block">第一止盈 (TP1)</span>
-                            <strong class="text-green-400 text-sm">$${coin.tp1}</strong>
+                            <strong class="text-green-400 text-sm">$${coin.tp1Str}</strong>
                         </div>
                         <div class="bg-gray-800/60 p-2 rounded">
                             <span class="text-gray-400 block">第二止盈 (TP2)</span>
-                            <strong class="text-green-400 text-sm">$${coin.tp2}</strong>
+                            <strong class="text-green-400 text-sm">$${coin.tp2Str}</strong>
                         </div>
                     </div>
                 </div>
 
-                <!-- 一鍵複製 88x 參數按鈕 -->
-                <button onclick="copyCurrentSignal()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-lg flex items-center justify-center gap-2 cursor-pointer">
-                    📋 一鍵複製 ${coin.symbol} (88x) 下單參數
-                </button>
+                <!-- Bitunix 專用：獨立數值一鍵複製按鈕區 -->
+                <div class="space-y-2 pt-2">
+                    <p class="text-xs text-yellow-400 font-bold">📋 Bitunix 欄位快速填寫 (點擊複製數值)：</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="copyField('entry')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-2 rounded text-xs transition cursor-pointer">
+                            複製進場價
+                        </button>
+                        <button onclick="copyField('sl')" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-2 rounded text-xs transition cursor-pointer">
+                            複製止損價
+                        </button>
+                        <button onclick="copyField('tp1')" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-2 rounded text-xs transition cursor-pointer">
+                            複製止盈價
+                        </button>
+                    </div>
+                </div>
             `;
         }
 
-        function copyCurrentSignal() {
+        function copyField(type) {
             const coin = liveCoinsData[selectedIndex];
             if (!coin) {
                 alert("目前沒有選中的標的！");
                 return;
             }
 
-            // 組裝 88x 參數字串
-            const copyText = `Symbol: ${coin.symbol} | Side: ${coin.type} | Lev: 88x | Entry: ${coin.entry} | SL: ${coin.sl} | TP1: ${coin.tp1}`;
+            let textToCopy = "";
+            let fieldName = "";
 
-            navigator.clipboard.writeText(copyText).then(() => {
-                alert(`✅ 已成功複製 ${coin.symbol} (88x) 下單參數！\n快去交易所貼上吧！`);
+            if (type === 'entry') {
+                textToCopy = coin.entryStr;
+                fieldName = "進場價 (Entry)";
+            } else if (type === 'sl') {
+                textToCopy = coin.slStr;
+                fieldName = "止損價 (Stop Loss)";
+            } else if (type === 'tp1') {
+                textToCopy = coin.tp1Str;
+                fieldName = "第一止盈 (TP1)";
+            }
+
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                alert(`✅ 已成功複製 ${coin.symbol} 的 ${fieldName}: ${textToCopy}\n👉 請直接至 Bitunix 對應欄位貼上！`);
             }).catch(err => {
                 console.error("複製失敗: ", err);
                 alert("複製失敗，請檢查瀏覽器剪貼簿權限。");
